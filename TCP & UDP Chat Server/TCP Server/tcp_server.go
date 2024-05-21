@@ -46,10 +46,10 @@ func handleClient(client Client) {
 		clientMutex.Lock()
 		delete(clients, client.conn)
 		clientMutex.Unlock()
-		broadcast(fmt.Sprintf("%s has left the chat", client.name))
+		broadcast(fmt.Sprintf("%s has left the chat\n", client.name))
 	}()
 
-	client.conn.Write([]byte("Enter your name :"))
+	client.conn.Write([]byte("Enter your name:\n"))
 	name, _ := bufio.NewReader(client.conn).ReadString('\n')
 	client.name = strings.TrimSpace(name) //strings.TrimSpace(name) removes any leading or trailing whitespace characters from the client's input (name).
 	clientMutex.Lock()
@@ -67,11 +67,12 @@ func handleClient(client Client) {
 	}
 }
 
-func broadcast(messege string) {
-	clientMutex.Unlock()
+func broadcast(message string) {
+	clientMutex.Lock()
+	defer clientMutex.Unlock()
 
 	for conn := range clients {
-		conn.Write([]byte(messege))
+		conn.Write([]byte(message))
 	}
 }
 
@@ -87,8 +88,8 @@ func main() {
 	// Goroutine for broadcasting messages
 	go func() {
 		for {
-			messege := <-broadcastCh
-			broadcast(messege)
+			message := <-broadcastCh
+			broadcast(message)
 		}
 	}()
 

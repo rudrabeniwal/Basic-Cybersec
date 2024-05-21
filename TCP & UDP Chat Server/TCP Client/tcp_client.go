@@ -13,6 +13,7 @@ func main() {
 	if err != nil {
 		fmt.Println("Error connecting to server ", err)
 	}
+	fmt.Println("Connceted to server!")
 	defer conn.Close()
 
 	//Read messeges from server

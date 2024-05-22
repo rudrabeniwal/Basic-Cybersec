@@ -17,7 +17,7 @@ func listenForMessages(conn *net.UDPConn) {
 			fmt.Println("Error reading form UDP Server:", err)
 			return
 		}
-		fmt.Print(string(buf[:n]))
+		fmt.Print(string(buf[:n]) + "\n")
 	}
 }
 

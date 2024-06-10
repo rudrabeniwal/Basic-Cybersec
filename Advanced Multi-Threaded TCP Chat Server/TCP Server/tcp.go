@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 )
@@ -18,14 +17,14 @@ type Client struct {
 }
 
 var (
-	clients = make(map[net.Conn]Client)
-	rooms = make(map[string][]Client)
-	broadcast = make(chan string)
-	register = make(chan Client)
-	unregister = make(chan net.Conn)
-	mu sync.Mutex
-	shutdown = make(chan bool)
-	users = map[string]string{} //Username:Password
+	clients       = make(map[net.Conn]Client)
+	rooms         = make(map[string][]Client)
+	broadcast     = make(chan string)
+	register      = make(chan Client)
+	unregister    = make(chan net.Conn)
+	mu            sync.Mutex
+	shutdown      = make(chan bool)
+	users         = map[string]string{} // Username:Password
 	authenticated = make(map[net.Conn]string)
 )
 
@@ -39,57 +38,57 @@ func main() {
 
 	fmt.Println("Server started on port 8080")
 
-	go handleMesseges()
+	go handleMessages()
 
 	go func() {
 		http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 			mu.Lock()
 			defer mu.Unlock()
-			fmt.Fprintf(w,  "Connected clients: %d\n", len(clients))
+			fmt.Fprintf(w, "Connected clients: %d\n", len(clients))
 			for _, client := range clients {
-				fmt.Fprintf(w, "User: %s, Room: %s\n", client.name,client.room)
+				fmt.Fprintf(w, "User: %s, Room: %s\n", client.name, client.room)
 			}
 		})
 		log.Fatal(http.ListenAndServe(":8081", nil))
-	} ()
+	}()
 
-		go func() {
-			var input string
-			for {
-				fmt.Scanln(&input)
-				if input == "exit" {
-					shutdown <- true
-					return
-				}
-			}
-		} ()
-	
+	go func() {
+		var input string
 		for {
-			select {
-			case <- shutdown:
-				ln.Close()
-				mu.Lock()
-				for _, client := range clients {
-					client.conn.Write([]byte("Server is shutting down...\n"))
-					client.conn.Close()
-				}
-				mu.Unlock()
+			fmt.Scanln(&input)
+			if input == "exit" {
+				shutdown <- true
 				return
-			default:
-				conn, err := ln.Accept()
-				if err != nil {
-					fmt.Println("Error accepting connection:", err)
-					continue
-				}
-				go handleConnection(conn)
 			}
 		}
-}
+	}()
 
-func handleMesseges() {
 	for {
 		select {
-		case msg := <- broadcast:
+		case <-shutdown:
+			ln.Close()
+			mu.Lock()
+			for _, client := range clients {
+				client.conn.Write([]byte("Server is shutting down...\n"))
+				client.conn.Close()
+			}
+			mu.Unlock()
+			return
+		default:
+			conn, err := ln.Accept()
+			if err != nil {
+				fmt.Println("Error accepting connection:", err)
+				continue
+			}
+			go handleConnection(conn)
+		}
+	}
+}
+
+func handleMessages() {
+	for {
+		select {
+		case msg := <-broadcast:
 			mu.Lock()
 			for _, client := range clients {
 				if client.room != "" {
@@ -99,25 +98,23 @@ func handleMesseges() {
 				}
 			}
 			mu.Unlock()
-
-		case client := <- register:
+		case client := <-register:
 			mu.Lock()
-			clients[clinet.conn] = client
+			clients[client.conn] = client
 			if client.room != "" {
 				rooms[client.room] = append(rooms[client.room], client)
 			}
 			mu.Unlock()
 			broadcast <- fmt.Sprintf("%s joined the chat\n", client.name)
-		
-		case conn := <- unregister:
+		case conn := <-unregister:
 			mu.Lock()
 			if client, ok := clients[conn]; ok {
-				delete(client, conn)
+				delete(clients, conn)
 				if client.room != "" {
 					roomClients := rooms[client.room]
-					for i, rommClient := range roomClients {
+					for i, roomClient := range roomClients {
 						if roomClient.conn == conn {
-							romms[client.room] = append(roomClients[:i], roomClients[i+1:]...)
+							rooms[client.room] = append(roomClients[:i], roomClients[i+1:]...)
 							break
 						}
 					}
@@ -141,7 +138,7 @@ func handleConnection(conn net.Conn) {
 	password, _ := bufio.NewReader(conn).ReadString('\n')
 	password = strings.TrimSpace(password)
 
-	if auth, ok := authenticate(conn, username, password); !auth {
+	if auth, _ := authenticate(conn, username, password); !auth {
 		return
 	} else {
 		authenticated[conn] = username
@@ -162,14 +159,14 @@ func handleConnection(conn net.Conn) {
 
 func authenticate(conn net.Conn, username, password string) (bool, error) {
 	mu.Lock()
-	defer  mu.Unlock()
+	defer mu.Unlock()
 
-	if storedPassword, ok := users[username]; ok{
+	if storedPassword, ok := users[username]; ok {
 		if storedPassword == password {
-			conn.Write([]byte("Authentication Successful.\n"))
+			conn.Write([]byte("Authentication successful.\n"))
 			return true, nil
 		} else {
-			conn.Write([]byte("Invalid Password.\n"))
+			conn.Write([]byte("Invalid password.\n"))
 			return false, nil
 		}
 	} else {
@@ -180,7 +177,7 @@ func authenticate(conn net.Conn, username, password string) (bool, error) {
 }
 
 func handleClientMessage(client Client, msg string) {
-	if strings.HasPrefix(msg, "/"){
+	if strings.HasPrefix(msg, "/") {
 		handleCommand(client, msg)
 	} else {
 		mu.Lock()
@@ -194,23 +191,23 @@ func handleClientMessage(client Client, msg string) {
 }
 
 func handleCommand(client Client, msg string) {
-	parts := strings.Split(msg, " ", 3)
+	parts := strings.SplitN(msg, " ", 3)
 	switch parts[0] {
 	case "/list":
-		client.conn.Write([]byte("Connected users: \n"))
+		client.conn.Write([]byte("Connected users:\n"))
 		mu.Lock()
-		for _,c := range clients {
+		for _, c := range clients {
 			client.conn.Write([]byte(c.name + "\n"))
 		}
 		mu.Unlock()
 	case "/msg":
 		if len(parts) < 3 {
-			client.conn.Write([]byte("Usage: /msg <user> <messege>\n"))
+			client.conn.Write([]byte("Usage: /msg <user> <message>\n"))
 			return
 		}
-		targetName, messege := parts[1], parts[2]
+		targetName, message := parts[1], parts[2]
 		mu.Lock()
-		for _, c := clients {
+		for _, c := range clients {
 			if c.name == targetName {
 				c.conn.Write([]byte(fmt.Sprintf("Private from %s: %s\n", client.name, message)))
 				client.conn.Write([]byte(fmt.Sprintf("Private to %s: %s\n", targetName, message)))
@@ -231,7 +228,7 @@ func handleCommand(client Client, msg string) {
 			oldRoomClients := rooms[client.room]
 			for i, roomClient := range oldRoomClients {
 				if roomClient.conn == client.conn {
-					rooms[client.room] = append(oldRoomClients[:i], oldRoomClients[i+1:]... )
+					rooms[client.room] = append(oldRoomClients[:i], oldRoomClients[i+1:]...)
 					break
 				}
 			}

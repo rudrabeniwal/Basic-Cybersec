@@ -9,7 +9,7 @@
 
 int load_binary(std::string &fname, Binary *bin, Binary::BinaryType type)
 {
-    return load_binary_bfd(fname, bin, type);;
+    return load_binary_bfd(fname, bin, type);
 }
 
 void unload_binary(Binary *bin)
@@ -71,7 +71,7 @@ static int load_binary_bfd(std::string &fname, Binary *bin, Binary::BinaryType t
     }
 
     bin->filename = std::string(fname);
-    bin->entry = bfd_get_start_adderess(bfd_h);
+    bin->entry = bfd_get_start_address(bfd_h);
 
     bin->type_str = std::string(bfd_h->xvec->name);
     switch(bfd_h->xvec->flavour){
